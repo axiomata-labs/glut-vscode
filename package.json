@@ -123,6 +123,37 @@
         "command": "glut.open",
         "key": "ctrl+escape",
         "mac": "cmd+escape"
+      },
+      {
+        "command": "workbench.action.terminal.sendSequence",
+        "key": "cmd+k",
+        "args": {
+          "text": "\f"
+        },
+        "when": "terminalFocus && glut.terminalActive"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "glut",
+          "title": "Glut",
+          "icon": "media/glut.svg"
+        }
+      ]
+    },
+    "views": {
+      "glut": [
+        {
+          "id": "glut.start",
+          "name": "Glut"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "glut.start",
+        "contents": "Glut runs in a terminal beside your files; this flame brings it to the front.\n[Open Glut](command:glut.open)\nWhat you select in a file goes to Glut with your next message by itself. To name it in your text:\n[Send Selection to Glut](command:glut.send)\n[Add File to Glut](command:glut.add)"
       }
     ]
   },

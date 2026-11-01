@@ -62,6 +62,10 @@ async function listen(context: vscode.ExtensionContext): Promise<void> {
         state.file = lockfile.write(state.served.port, state.secret, ideName(), folders());
       }
     }),
+    // ⌘K in Glut's terminal draws Glut anew (⌃L) instead of clearing it: a cleared terminal leaves Glut blank.
+    vscode.window.onDidChangeActiveTerminal((active) => {
+      void vscode.commands.executeCommand("setContext", "glut.terminalActive", active !== undefined && active === state.terminal);
+    }),
     vscode.window.onDidCloseTerminal((closed) => {
       if (closed === state.terminal) {
         state.terminal = undefined;
@@ -88,6 +92,7 @@ function open(): boolean {
     location: beside ? { viewColumn: vscode.ViewColumn.Beside } : vscode.TerminalLocation.Panel,
   });
   state.terminal.show(false);
+  void vscode.commands.executeCommand("setContext", "glut.terminalActive", true);
   return true;
 }
 
@@ -145,8 +150,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   item.tooltip = "Open Glut";
   item.command = "glut.open";
   item.show();
+  // The flame in the activity bar: its view holds the buttons, and opening it brings Glut to the front — not when a
+  // window comes back with the view open, only when the owner clicks it.
+  const view = vscode.window.createTreeView("glut.start", { treeDataProvider: { getChildren: () => [], getTreeItem: (item: vscode.TreeItem) => item } });
   context.subscriptions.push(
     item,
+    view,
+    view.onDidChangeVisibility(({ visible }) => {
+      if (visible) {
+        open();
+      }
+    }),
     vscode.commands.registerCommand("glut.open", () => open()),
     vscode.commands.registerCommand("glut.send", () => {
       const editor = vscode.window.activeTextEditor;

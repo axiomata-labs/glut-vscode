@@ -36,8 +36,10 @@ VS Code too.
 
 ## Commands
 
-*Open Glut* has the key ⌘Esc (Ctrl+Esc on Linux and Windows), a flame in every editor's title bar and *Glut* in
-the status bar; bind the other commands the way you like.
+*Open Glut* has the key ⌘Esc (Ctrl+Esc on Linux and Windows), the flame in the activity bar on the left (its view has
+the buttons), a flame in the focused editor's title bar and *Glut* in the status bar. What you select goes to Glut with
+your next message by itself; *Send Selection* only names it in your text. ⌘K in Glut's terminal draws Glut anew
+instead of clearing it.
 
 | Command | What it does |
 |---|---|
