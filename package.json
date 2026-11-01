@@ -55,17 +55,17 @@
       "editor/title": [
         {
           "command": "glut.acceptDiff",
-          "when": "glut.diffShown",
+          "when": "resourceScheme == glut-change || resourceScheme == glut-shown",
           "group": "navigation@1"
         },
         {
           "command": "glut.denyDiff",
-          "when": "glut.diffShown",
+          "when": "resourceScheme == glut-change || resourceScheme == glut-shown",
           "group": "navigation@2"
         },
         {
           "command": "glut.open",
-          "when": "!glut.diffShown",
+          "when": "resourceScheme != glut-change && resourceScheme != glut-shown",
           "group": "navigation@9"
         }
       ],

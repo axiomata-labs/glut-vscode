@@ -225,3 +225,13 @@ export function ownerMoves() {
     tabsChanged.fire({ opened: [], closed: [tab], changed: [] });
   }
 }
+
+/** The right side of the diff in front, as a click on its title bar hands it to a command. */
+export function rightSide() {
+  return (group.activeTab?.input as TabInputTextDiff).modified;
+}
+
+/** The owner goes back to Glut's terminal: no editor tab is the active one any more. */
+export function ownerFocusesGlut() {
+  group.activeTab = undefined;
+}

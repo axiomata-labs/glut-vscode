@@ -171,8 +171,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         typeIntoGlut(`@${name} `);
       }
     }),
-    vscode.commands.registerCommand("glut.acceptDiff", () => state.editor?.answerCurrent(true)),
-    vscode.commands.registerCommand("glut.denyDiff", () => state.editor?.answerCurrent(false)),
+    vscode.commands.registerCommand("glut.acceptDiff", (uri?: vscode.Uri) => state.editor?.answerCurrent(true, uri)),
+    vscode.commands.registerCommand("glut.denyDiff", (uri?: vscode.Uri) => state.editor?.answerCurrent(false, uri)),
   );
 }
 

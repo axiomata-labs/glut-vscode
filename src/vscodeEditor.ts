@@ -276,7 +276,12 @@ export class VsCodeEditor implements Editor, vscode.Disposable {
     if (!(input instanceof vscode.TabInputTextDiff)) {
       return undefined;
     }
-    const wanted = input.modified.toString();
+    return this.byRight(input.modified);
+  }
+
+  /** The diff whose right side is `uri`, if it is one of Glut's. */
+  private byRight(uri: vscode.Uri): string | undefined {
+    const wanted = uri.toString();
     for (const [id, shown] of this.diffs) {
       if (shown.right.toString() === wanted) {
         return id;
@@ -285,9 +290,12 @@ export class VsCodeEditor implements Editor, vscode.Disposable {
     return undefined;
   }
 
-  /** The owner answers the diff in the active tab. */
-  answerCurrent(accepted: boolean): void {
-    const id = this.current();
+  /**
+   * The owner answers a diff: the one whose title bar was clicked (`uri`, its right side) — its group need not have the
+   * focus, which stays in Glut's terminal — or, from the palette, the one in the active tab.
+   */
+  answerCurrent(accepted: boolean, uri?: vscode.Uri): void {
+    const id = uri instanceof vscode.Uri ? this.byRight(uri) : this.current();
     if (id === undefined) {
       void vscode.window.showWarningMessage("Glut: no diff of Glut's in this tab");
       return;

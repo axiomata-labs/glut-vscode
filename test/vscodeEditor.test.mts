@@ -46,6 +46,29 @@ test("a diff takes the owner's own text, answers once and closes without asking 
   editor.dispose();
 });
 
+test("a click on a diff's title bar answers that diff while the focus stays in Glut's terminal", async () => {
+  const editor = new VsCodeEditor();
+  const answers: unknown[] = [];
+  editor.openDiff(
+    { id: "ask-9", path: "/w/c.ts", oldText: "a\n", newText: "b\n", title: "c.ts", editable: true },
+    (answer) => answers.push(answer),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  vscode.ownerTypes("mine\n");
+  const right = vscode.rightSide();
+  vscode.ownerFocusesGlut();
+  editor.answerCurrent(true);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(answers, [], "from the palette, with no diff in front, nothing is answered");
+  editor.answerCurrent(true, new vscode.Uri("file", "/w/c.ts"));
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(answers, [], "a file's own title bar answers no diff");
+  editor.answerCurrent(true, right);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(answers, [{ outcome: "accepted", text: "mine\n" }]);
+  editor.dispose();
+});
+
 test("a rename's diff takes no change, and a tab closed by the owner answers closed", async () => {
   const editor = new VsCodeEditor();
   const answers: unknown[] = [];
