@@ -1,0 +1,120 @@
+{
+  "name": "glut",
+  "displayName": "Glut",
+  "description": "Glut beside VS Code: the file, the selection and your unsaved buffers go to Glut, its edits come back as VS Code diffs.",
+  "version": "0.1.0",
+  "publisher": "namorx68",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NamorX68/glut-vscode"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "glut.open",
+        "title": "Open Glut",
+        "category": "Glut"
+      },
+      {
+        "command": "glut.send",
+        "title": "Send Selection to Glut",
+        "category": "Glut"
+      },
+      {
+        "command": "glut.add",
+        "title": "Add File to Glut",
+        "category": "Glut"
+      },
+      {
+        "command": "glut.acceptDiff",
+        "title": "Accept Glut's Change",
+        "category": "Glut",
+        "icon": "$(check)"
+      },
+      {
+        "command": "glut.denyDiff",
+        "title": "Refuse Glut's Change",
+        "category": "Glut",
+        "icon": "$(close)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "glut.acceptDiff",
+          "when": "glut.diffShown",
+          "group": "navigation@1"
+        },
+        {
+          "command": "glut.denyDiff",
+          "when": "glut.diffShown",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "glut.send",
+          "when": "editorHasSelection",
+          "group": "glut@1"
+        },
+        {
+          "command": "glut.add",
+          "group": "glut@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "glut.acceptDiff",
+          "when": "glut.diffShown"
+        },
+        {
+          "command": "glut.denyDiff",
+          "when": "glut.diffShown"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Glut",
+      "properties": {
+        "glut.command": {
+          "type": "string",
+          "default": "glut",
+          "description": "The program Glut is started as."
+        },
+        "glut.terminalLocation": {
+          "type": "string",
+          "enum": [
+            "editor",
+            "panel"
+          ],
+          "default": "editor",
+          "description": "Where Glut's terminal opens: beside the editors, or in the panel."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "check": "tsc -p . --noEmit",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test test/*.test.mts",
+    "package": "npm run compile && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/vscode": "1.100.0",
+    "@vscode/vsce": "3.9.2",
+    "typescript": "5.9.3"
+  }
+}
