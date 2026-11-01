@@ -3,11 +3,12 @@
 // shows its questions about edits as VS Code's own diffs. Glut itself runs in a terminal beside the editors (Glut:
 // Open Glut) or anywhere else in this folder. Cursor and Windsurf, built on VS Code, take it as it is.
 
+import * as path from "node:path";
 import * as vscode from "vscode";
 import * as lockfile from "./lockfile.ts";
 import { Diffs, handle } from "./protocol.ts";
 import { start, type Served } from "./server.ts";
-import { VsCodeEditor } from "./vscodeEditor.ts";
+import { SCHEMES, VsCodeEditor } from "./vscodeEditor.ts";
 
 /** How long Glut takes to draw its input before a reference pasted into it is kept, in milliseconds. */
 const GLUT_READY_MS = 800;
@@ -44,7 +45,15 @@ async function listen(context: vscode.ExtensionContext): Promise<void> {
     (message, respond, connection) => handle(editor, diffs, version, ideName(), message, respond, connection),
     (connection) => diffs.ended(connection),
   );
-  Object.assign(state, { served, secret, editor, diffs, file: lockfile.write(served.port, secret, ideName(), folders()) });
+  let file: string;
+  try {
+    file = lockfile.write(served.port, secret, ideName(), folders());
+  } catch (error) {
+    await served.stop();
+    editor.dispose();
+    throw error;
+  }
+  Object.assign(state, { served, secret, editor, diffs, file });
   context.subscriptions.push(
     editor,
     // The folders Glut finds this editor by follow VS Code's: the same port and token, the file written anew.
@@ -69,9 +78,11 @@ function open(): boolean {
   }
   const config = vscode.workspace.getConfiguration("glut");
   const beside = config.get<string>("terminalLocation", "editor") === "editor";
+  // The owner's own setting alone: a folder's settings never choose the program that starts here.
+  const command = config.inspect<string>("command")?.globalValue ?? "glut";
   state.terminal = vscode.window.createTerminal({
     name: "Glut",
-    shellPath: config.get<string>("command", "glut"),
+    shellPath: command,
     cwd: vscode.workspace.workspaceFolders?.[0]?.uri,
     env: { GLUT_IDE_PORT: String(state.served?.port ?? "") },
     location: beside ? { viewColumn: vscode.ViewColumn.Beside } : vscode.TerminalLocation.Panel,
@@ -103,10 +114,13 @@ function relative(uri: vscode.Uri): string | undefined {
     void vscode.window.showWarningMessage("Glut: not a file");
     return undefined;
   }
-  const name = vscode.workspace.asRelativePath(uri, false);
-  // A space or a control character would end the reference, or act as a key.
+  // Below the folder Glut runs in (the first one); a file elsewhere by its whole path.
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const below = root ? path.relative(root, uri.fsPath) : "";
+  const name = root && below && !below.startsWith("..") && !path.isAbsolute(below) ? below : uri.fsPath;
+  // A space, a control, bidi or zero-width character would end the reference, act as a key or hide what it names.
   // eslint-disable-next-line no-control-regex
-  if (/[\s\u0000-\u001f\u007f]/.test(name)) {
+  if (/[\s\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/.test(name)) {
     void vscode.window.showWarningMessage("Glut: this file's name cannot go into a reference");
     return undefined;
   }
@@ -114,6 +128,15 @@ function relative(uri: vscode.Uri): string | undefined {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  // Diffs of Glut's a window brought back from before answer nothing: their question went with the last session.
+  for (const group of vscode.window.tabGroups.all) {
+    for (const tab of group.tabs) {
+      const input = tab.input;
+      if (input instanceof vscode.TabInputTextDiff && SCHEMES.includes(input.modified.scheme)) {
+        void vscode.window.tabGroups.close(tab, true);
+      }
+    }
+  }
   await listen(context);
   context.subscriptions.push(
     vscode.commands.registerCommand("glut.open", () => open()),

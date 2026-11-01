@@ -3,8 +3,10 @@
 // diffs — the file on the left, Glut's change on the right, which the owner may change before accepting.
 
 import * as fs from "node:fs";
+import * as nodePath from "node:path";
+import { randomBytes } from "node:crypto";
 import * as vscode from "vscode";
-import type { Context, DiffAnswer, DiffRequest, Editor, OpenFile } from "./protocol.ts";
+import { shown as plainly, type Context, type DiffAnswer, type DiffRequest, type Editor, type OpenFile } from "./protocol.ts";
 
 /** The left side of a diff: the file as it is, read-only. */
 const BEFORE = "glut-before";
@@ -33,6 +35,9 @@ export function cut(text: string, bytes: number): string {
   return out;
 }
 
+/** The schemes of Glut's own diff documents. */
+export const SCHEMES = [BEFORE, CHANGE, SHOWN];
+
 /** A path as the disk names it: links resolved where the file is there. */
 function real(path: string): string {
   try {
@@ -47,8 +52,22 @@ interface Shown {
   left: vscode.Uri;
   right: vscode.Uri;
   newText: string;
+  /** The right side as VS Code loaded it (its line endings and BOM normalised): the owner changed it if it differs. */
+  loaded?: string;
   editable: boolean;
   answer: (answer: DiffAnswer) => void;
+}
+
+/** `text` as the file Glut proposed writes it: its line endings and its BOM. */
+export function asProposed(text: string, proposed: string): string {
+  let out = text.replace(/\r\n/g, "\n");
+  if (proposed.includes("\r\n")) {
+    out = out.replace(/\n/g, "\r\n");
+  }
+  if (proposed.startsWith("\ufeff") && !out.startsWith("\ufeff")) {
+    out = `\ufeff${out}`;
+  }
+  return out;
 }
 
 /** In-memory files for the right side of an editable diff: what the owner saves there stays here. */
@@ -141,7 +160,9 @@ export class VsCodeEditor implements Editor, vscode.Disposable {
   }
 
   context(): Context {
-    const editor = this.active;
+    // The editor on screen for that document where there is one: a hidden editor's selection is not kept current.
+    const editor =
+      vscode.window.visibleTextEditors.find((visible) => visible.document === this.active?.document) ?? this.active;
     if (!editor || editor.document.isClosed) {
       return { activeFile: null };
     }
@@ -188,6 +209,9 @@ export class VsCodeEditor implements Editor, vscode.Disposable {
 
   /** The open document of exactly `path` — matched by its real path, never by a part of its name. */
   private document(path: string): vscode.TextDocument | undefined {
+    if (!nodePath.isAbsolute(path)) {
+      return undefined;
+    }
     const wanted = real(path);
     return vscode.workspace.textDocuments.find(
       (document) => !document.isClosed && document.uri.scheme === "file" && real(document.uri.fsPath) === wanted,
@@ -218,8 +242,9 @@ export class VsCodeEditor implements Editor, vscode.Disposable {
   }
 
   openDiff(request: DiffRequest, answer: (answer: DiffAnswer) => void): void {
-    const name = request.path.split("/").pop() ?? "file";
-    const place = `/${encodeURIComponent(request.id)}/${name}`;
+    const name = nodePath.basename(request.path) || "file";
+    // A nonce of its own: a diff shown again under the same id never shares the documents of the one before.
+    const place = `/${randomBytes(8).toString("hex")}/${name}`;
     const left = vscode.Uri.from({ scheme: BEFORE, path: place });
     const right = vscode.Uri.from({ scheme: request.editable ? CHANGE : SHOWN, path: place });
     this.readOnly.set(left.toString(), request.oldText ?? "");
@@ -228,13 +253,21 @@ export class VsCodeEditor implements Editor, vscode.Disposable {
     } else {
       this.readOnly.set(right.toString(), request.newText);
     }
-    this.diffs.set(request.id, { left, right, newText: request.newText, editable: request.editable, answer });
-    // Glut's control characters in a title would draw as they are.
-    // eslint-disable-next-line no-control-regex
-    const title = `Glut: ${(request.title || name).replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")}`;
-    // The owner types in Glut's terminal: the diff shows without the focus, so no key meant for Glut lands in it.
-    void vscode.commands.executeCommand("vscode.diff", left, right, title, { preview: false, preserveFocus: true });
-    void vscode.window.showInformationMessage(`Glut asks about a change of ${name}.`);
+    const shown: Shown = { left, right, newText: request.newText, editable: request.editable, answer };
+    this.diffs.set(request.id, shown);
+    const title = `Glut: ${plainly(request.title || name)}`;
+    // The owner types in Glut's terminal: the diff shows without the focus, so no key meant for Glut lands in it — and
+    // beside the file they work on, never over Glut's own terminal.
+    const options = { preview: false, preserveFocus: true, viewColumn: this.active?.viewColumn };
+    vscode.commands.executeCommand("vscode.diff", left, right, title, options).then(
+      () => {
+        shown.loaded = vscode.workspace.textDocuments
+          .find((open) => open.uri.toString() === right.toString())
+          ?.getText();
+      },
+      () => this.settle(request.id, { outcome: "closed" }),
+    );
+    void vscode.window.showInformationMessage(`Glut asks about a change of ${plainly(name)}.`);
   }
 
   /** The id of the diff in the active tab, if it is one of Glut's. */
@@ -267,8 +300,8 @@ export class VsCodeEditor implements Editor, vscode.Disposable {
     if (accepted && shown.editable) {
       const document = vscode.workspace.textDocuments.find((open) => open.uri.toString() === shown.right.toString());
       const now = document?.getText();
-      if (now !== undefined && now !== shown.newText) {
-        text = now;
+      if (now !== undefined && now !== (shown.loaded ?? shown.newText)) {
+        text = asProposed(now, shown.newText);
       }
     }
     this.settle(id, accepted ? { outcome: "accepted", text } : { outcome: "rejected" });
@@ -305,11 +338,20 @@ export class VsCodeEditor implements Editor, vscode.Disposable {
 
   /** A diff's tab the owner closed answers nothing: `closed`. */
   private tabsChanged(event: vscode.TabChangeEvent): void {
+    const still = new Set(
+      vscode.window.tabGroups.all
+        .flatMap((group) => group.tabs)
+        .map((tab) => (tab.input instanceof vscode.TabInputTextDiff ? tab.input.modified.toString() : "")),
+    );
     for (const tab of event.closed) {
       if (!(tab.input instanceof vscode.TabInputTextDiff)) {
         continue;
       }
       const closed = tab.input.modified.toString();
+      // A tab moved to another group or window is closed in one place and open in the other: it still asks.
+      if (still.has(closed)) {
+        continue;
+      }
       for (const [id, shown] of this.diffs) {
         if (shown.right.toString() === closed) {
           this.settle(id, { outcome: "closed" });
@@ -330,6 +372,6 @@ export class VsCodeEditor implements Editor, vscode.Disposable {
   }
 
   notify(message: string): void {
-    void vscode.window.showInformationMessage(`Glut: ${message}`);
+    void vscode.window.showInformationMessage(`Glut: ${plainly(message)}`);
   }
 }

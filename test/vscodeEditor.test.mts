@@ -16,7 +16,7 @@ registerHooks({
 });
 
 const vscode = await import("./fake-vscode.mts");
-const { VsCodeEditor, cut } = await import("../src/vscodeEditor.ts");
+const { VsCodeEditor, cut, asProposed } = await import("../src/vscodeEditor.ts");
 
 test("a diff takes the owner's own text, answers once and closes without asking to save", async () => {
   const editor = new VsCodeEditor();
@@ -72,4 +72,24 @@ test("a rename's diff takes no change, and a tab closed by the owner answers clo
 test("a selection is cut on a character, never inside one", () => {
   assert.equal(cut("äää", 4), "ää");
   assert.equal(cut("abc", 16), "abc");
+});
+
+test("the owner's text keeps the proposed file's line endings and BOM, and a moved tab still asks", async () => {
+  assert.equal(asProposed("a\nb\n", "x\r\ny\r\n"), "a\r\nb\r\n");
+  assert.equal(asProposed("a\n", "\ufeffx\n"), "\ufeffa\n");
+  assert.equal(asProposed("a\r\nb", "x\ny"), "a\nb");
+  const editor = new VsCodeEditor();
+  const answers: unknown[] = [];
+  editor.openDiff(
+    { id: "ask-6", path: "/w/c.ts", oldText: "a\r\n", newText: "b\r\n", title: "c.ts", editable: true },
+    (answer) => answers.push(answer),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  vscode.ownerMoves();
+  assert.equal(answers.length, 0, "moved, not closed");
+  // VS Code loaded it with its own line endings; the owner touched nothing.
+  editor.answerCurrent(true);
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(answers, [{ outcome: "accepted", text: undefined }]);
+  editor.dispose();
 });

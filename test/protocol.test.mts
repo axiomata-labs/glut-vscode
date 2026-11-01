@@ -8,7 +8,7 @@ import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as lockfile from "../src/lockfile.ts";
-import { Diffs, handle, plain, type DiffAnswer, type DiffRequest, type Editor } from "../src/protocol.ts";
+import { Diffs, handle, plain, shown, type DiffAnswer, type DiffRequest, type Editor } from "../src/protocol.ts";
 import { start, type Served } from "../src/server.ts";
 
 /** An editor that holds one unsaved buffer and keeps the diffs it was shown. */
@@ -52,13 +52,14 @@ class StandIn implements Editor {
 
 const SECRET = "0123456789abcdef0123456789abcdef";
 
-async function serve(): Promise<{ served: Served; editor: StandIn }> {
+async function serve(times?: { idleMs: number; unprovenMs: number }): Promise<{ served: Served; editor: StandIn }> {
   const editor = new StandIn();
   const diffs = new Diffs(editor);
   const served = await start(
     SECRET,
     (message, respond, connection) => handle(editor, diffs, "0.1.0", "Visual Studio Code", message, respond, connection),
     (connection) => diffs.ended(connection),
+    times,
   );
   return { served, editor };
 }
@@ -225,10 +226,33 @@ test("a diff whose connection ended is closed, and Glut's note shows as plain wo
     assert.ok(!editor.diffs.has("ask-3"), "nobody waits for its answer any more");
 
     await tool(served.port, "notify", { message: "answer it in Glut\u001b[2J" });
-    assert.deepEqual(editor.told, ["answer it in Glut [2J"]);
+    assert.deepEqual(editor.told, ["answer it in Glut ‹2J"]);
     assert.equal(plain("x".repeat(400)).length, 300);
     assert.equal(plain("…".repeat(400)), "…".repeat(300), "cut by characters, never inside one");
   } finally {
     await served.stop();
   }
+});
+
+test("a diff waits for the owner past the idle time; a stranger who shows no token is let go soon", async () => {
+  const { served, editor } = await serve({ idleMs: 300, unprovenMs: 300 });
+  try {
+    const waiting = tool(served.port, "openDiff", { id: "ask-5", path: "/w/a.ts", oldText: "a", newText: "b" });
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const diff = editor.diffs.get("ask-5");
+    assert.ok(diff, "three idle times passed: the diff still waits");
+    diff.answer({ outcome: "rejected" });
+    assert.deepEqual(await waiting, { outcome: "rejected" });
+    const started = Date.now();
+    await raw(served.port, "");
+    assert.ok(Date.now() - started < 1500, "a silent connection is closed by the editor");
+  } finally {
+    await served.stop();
+  }
+});
+
+test("what a notification shows can never be a link that runs a command", () => {
+  assert.equal(shown("[Dismiss](command:glut.acceptDiff).ts"), "‹Dismiss›(command:glut.acceptDiff).ts");
+  assert.equal(shown("a\u202eb\u200bc"), "a b c");
+  assert.equal(plain("[x](command:foo)"), "‹x›(command:foo)");
 });

@@ -92,12 +92,23 @@ function string(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-/** Glut's words as plain words: control characters as spaces, at most [`MOST_NOTIFIED`] characters. */
+/**
+ * Text as VS Code shows it in a notification or a title, as plain words: control, bidi and zero-width characters as
+ * spaces, and no square bracket — a notification turns `[label](command:…)` into a button that runs the command.
+ */
+export function shown(text: string): string {
+  return (
+    text
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, " ")
+      .replace(/\[/g, "‹")
+      .replace(/\]/g, "›")
+  );
+}
+
+/** Glut's words as plain words ([`shown`]), at most [`MOST_NOTIFIED`] characters, never cut inside one. */
 export function plain(message: string): string {
-  // eslint-disable-next-line no-control-regex
-  return Array.from(message.replace(/[\u0000-\u001f\u007f-\u009f]/g, " "))
-    .slice(0, MOST_NOTIFIED)
-    .join("");
+  return Array.from(shown(message)).slice(0, MOST_NOTIFIED).join("");
 }
 
 /** What `tools/list` shows Glut's model. */
@@ -130,7 +141,7 @@ export class Diffs {
     }
     const entry = { connection };
     this.open.set(request.id, entry);
-    this.editor.openDiff(request, (answer) => {
+    const answered = (answer: DiffAnswer) => {
       if (this.open.get(request.id) !== entry) {
         return;
       }
@@ -140,7 +151,13 @@ export class Diffs {
         out.text = answer.text;
       }
       respond(text(out));
-    });
+    };
+    try {
+      this.editor.openDiff(request, answered);
+    } catch {
+      // A diff that could not be shown asks nothing: its question answers `closed`.
+      answered({ outcome: "closed" });
+    }
   }
 
   /** Closes the diff `id`: its question answers `closed`. */

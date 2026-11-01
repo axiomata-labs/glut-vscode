@@ -10,7 +10,7 @@
     "url": "https://github.com/NamorX68/glut-vscode"
   },
   "engines": {
-    "vscode": "^1.100.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
     "AI",
@@ -83,6 +83,13 @@
           "command": "glut.denyDiff",
           "when": "glut.diffShown"
         }
+      ],
+      "explorer/context": [
+        {
+          "command": "glut.add",
+          "when": "!explorerResourceIsFolder",
+          "group": "glut@1"
+        }
       ]
     },
     "configuration": {
@@ -91,7 +98,8 @@
         "glut.command": {
           "type": "string",
           "default": "glut",
-          "description": "The program Glut is started as."
+          "description": "The program Glut is started as (a path or a name on the PATH). Only your user settings count: a folder's own settings never choose the program.",
+          "scope": "machine"
         },
         "glut.terminalLocation": {
           "type": "string",
@@ -113,8 +121,17 @@
   },
   "devDependencies": {
     "@types/node": "22.20.5",
-    "@types/vscode": "1.100.0",
+    "@types/vscode": "1.85.0",
     "@vscode/vsce": "3.9.2",
     "typescript": "5.9.3"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In a folder you do not trust, Glut starts only as the program your user settings name.",
+      "restrictedConfigurations": [
+        "glut.command"
+      ]
+    }
   }
 }

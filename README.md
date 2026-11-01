@@ -19,7 +19,7 @@ The protocol is Glut's own, in Glut's repository: `docs/editor-protocol.md`.
 
 ## Requirements
 
-- VS Code 1.100 or later (or a fork of it)
+- VS Code 1.85 or later (or a fork of it: Cursor, Windsurf)
 - `glut` on the `PATH` (or set `glut.command`)
 
 ## Install
@@ -50,7 +50,7 @@ The extension binds no keys; bind the commands the way you like.
 
 | Setting | Default | |
 |---|---|---|
-| `glut.command` | `glut` | the program Glut is started as |
+| `glut.command` | `glut` | the program Glut is started as — read from your user settings only, never a folder's |
 | `glut.terminalLocation` | `editor` | `editor`: Glut's terminal beside the editors; `panel`: in the panel |
 
 ## Development

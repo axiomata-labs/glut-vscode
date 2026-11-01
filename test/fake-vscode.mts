@@ -141,6 +141,7 @@ function document(uri: Uri): Document {
 
 export const window = {
   activeTextEditor: undefined,
+  visibleTextEditors: [] as unknown[],
   onDidChangeActiveTextEditor: new EventEmitter<unknown>().event,
   tabGroups: {
     get all() {
@@ -215,4 +216,12 @@ export async function ownerCloses() {
 
 export function tabs() {
   return group.tabs.length;
+}
+
+/** The owner drags the tab in front to another group: VS Code says it closed where it was, and it lives on. */
+export function ownerMoves() {
+  const tab = group.activeTab;
+  if (tab) {
+    tabsChanged.fire({ opened: [], closed: [tab], changed: [] });
+  }
 }

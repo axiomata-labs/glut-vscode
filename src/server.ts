@@ -14,8 +14,16 @@ const MAX_BODY = 8 * 1024 * 1024;
 const MAX_HEAD = 16 * 1024;
 /** How many connections at once: Glut opens one for its questions and one for each diff. */
 const MOST_CONNECTIONS = 32;
-/** How long a connection may say nothing before it is closed, in milliseconds. */
+/** How long a connection may say nothing, with no question of its own waiting, before it is closed, in ms. */
 const IDLE_MS = 60 * 1000;
+/** How long a connection may take to show the token at all: a stranger holds no slot for long. */
+const UNPROVEN_MS = 10 * 1000;
+
+/** How long connections may wait; shorter in the tests. */
+export interface Times {
+  idleMs: number;
+  unprovenMs: number;
+}
 
 /** A JSON-RPC message as Glut sends it. */
 export interface Message {
@@ -80,14 +88,21 @@ export interface Served {
 /**
  * Serves `handle` for every JSON-RPC message with the right token; `closed(connection)` hears when a connection ends.
  */
-export function start(token: string, handle: Handle, closed: (connection: number) => void): Promise<Served> {
+export function start(
+  token: string,
+  handle: Handle,
+  closed: (connection: number) => void,
+  times: Times = { idleMs: IDLE_MS, unprovenMs: UNPROVEN_MS },
+): Promise<Served> {
   let next = 0;
   const ids = new WeakMap<Socket, number>();
   const sockets = new Set<Socket>();
   const server = http.createServer({ maxHeaderSize: MAX_HEAD });
   server.maxConnections = MOST_CONNECTIONS;
-  server.keepAliveTimeout = IDLE_MS;
-  server.headersTimeout = IDLE_MS;
+  server.keepAliveTimeout = times.idleMs;
+  server.headersTimeout = times.unprovenMs;
+  // Questions of each connection still waiting for their answer (a diff waits for the owner): no idleness then.
+  const waiting = new WeakMap<Socket, number>();
   // Glut waits for a diff as long as the owner takes: a request is not timed out, the connection's idleness is.
   server.requestTimeout = 0;
   server.on("connection", (socket: Socket) => {
@@ -95,20 +110,52 @@ export function start(token: string, handle: Handle, closed: (connection: number
     ids.set(socket, next);
     sockets.add(socket);
     const connection = next;
-    socket.setTimeout(IDLE_MS, () => socket.destroy());
+    // Until a head with the token came, a short deadline; then idleness counts only while nothing waits.
+    socket.setTimeout(times.unprovenMs, () => {
+      if ((waiting.get(socket) ?? 0) === 0) {
+        socket.destroy();
+      }
+    });
     socket.on("close", () => {
       sockets.delete(socket);
       closed(connection);
     });
   });
+  const refuse = (request: http.IncomingMessage, response: http.ServerResponse, status: number) => {
+    response.writeHead(status, { "Content-Type": "application/json", Connection: "close" });
+    response.end();
+    request.socket.destroySoon();
+  };
+  // `Expect: 100-continue` is judged like any head: a stranger hears no "go on".
+  server.on("checkContinue", (request: http.IncomingMessage, response: http.ServerResponse) => {
+    const refused = judgeHead(request, token);
+    if (refused !== undefined) {
+      refuse(request, response, refused);
+      return;
+    }
+    response.writeContinue();
+    server.emit("request", request, response);
+  });
   server.on("request", (request: http.IncomingMessage, response: http.ServerResponse) => {
     const refused = judgeHead(request, token);
     if (refused !== undefined) {
-      response.writeHead(refused, { "Content-Type": "application/json", Connection: "close" });
-      response.end();
-      request.socket.destroySoon();
+      refuse(request, response, refused);
       return;
     }
+    const socket = request.socket;
+    waiting.set(socket, (waiting.get(socket) ?? 0) + 1);
+    socket.setTimeout(0);
+    response.on("close", () => {
+      const left = (waiting.get(socket) ?? 1) - 1;
+      waiting.set(socket, left);
+      if (left === 0 && !socket.destroyed) {
+        socket.setTimeout(times.idleMs, () => {
+          if ((waiting.get(socket) ?? 0) === 0) {
+            socket.destroy();
+          }
+        });
+      }
+    });
     const connection = ids.get(request.socket) ?? 0;
     const chunks: Buffer[] = [];
     let size = 0;

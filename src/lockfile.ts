@@ -19,6 +19,10 @@ export function token(): string {
 
 /** Whether `pid` is a live process this user may signal. */
 function alive(pid: number): boolean {
+  // 0 and below name process groups, not one process.
+  if (!Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
   try {
     process.kill(pid, 0);
     return true;
@@ -66,18 +70,25 @@ export function write(port: number, secret: string, ide: string, folders: string
     port,
     pid: process.pid,
     ideName: ide,
-    workspaceFolders: folders,
+    // Glut compares its real working folder: a folder opened through a link is named where it really is.
+    workspaceFolders: folders.map((folder) => {
+      try {
+        return fs.realpathSync(folder);
+      } catch {
+        return folder;
+      }
+    }),
     authToken: secret,
   });
   fs.rmSync(temporary, { force: true });
   // Created new, never through a file or a link already there, readable by the owner alone from its first byte.
   const fd = fs.openSync(temporary, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL, 0o600);
   try {
+    fs.fchmodSync(fd, 0o600);
     fs.writeSync(fd, text);
   } finally {
     fs.closeSync(fd);
   }
-  fs.chmodSync(temporary, 0o600);
   fs.renameSync(temporary, file);
   return file;
 }
