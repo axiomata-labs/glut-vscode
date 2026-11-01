@@ -49,6 +49,11 @@
         "title": "Refuse Glut's Change",
         "category": "Glut",
         "icon": "$(close)"
+      },
+      {
+        "command": "glut.backToFile",
+        "title": "Back to the File",
+        "category": "Glut"
       }
     ],
     "menus": {
@@ -88,6 +93,10 @@
         {
           "command": "glut.denyDiff",
           "when": "glut.diffShown"
+        },
+        {
+          "command": "glut.backToFile",
+          "when": "glut.terminalActive"
         }
       ],
       "explorer/context": [
@@ -121,8 +130,15 @@
     "keybindings": [
       {
         "command": "glut.open",
-        "key": "ctrl+escape",
-        "mac": "cmd+escape"
+        "key": "ctrl+alt+g",
+        "mac": "alt+cmd+g",
+        "when": "!(terminalFocus && glut.terminalActive)"
+      },
+      {
+        "command": "glut.backToFile",
+        "key": "ctrl+alt+g",
+        "mac": "alt+cmd+g",
+        "when": "terminalFocus && glut.terminalActive"
       },
       {
         "command": "workbench.action.terminal.sendSequence",

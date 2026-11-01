@@ -20,6 +20,8 @@ interface State {
   editor?: VsCodeEditor;
   diffs?: Diffs;
   terminal?: vscode.Terminal;
+  /** The file editor the owner last worked in: where ⌥⌘G goes back to from Glut. */
+  lastEditor?: vscode.TextEditor;
 }
 
 const state: State = {};
@@ -71,6 +73,32 @@ async function listen(context: vscode.ExtensionContext): Promise<void> {
         state.terminal = undefined;
       }
     }),
+  );
+}
+
+/** From Glut back to the file the owner last worked in, where ⌥⌘G had brought them from. */
+async function backToFile(): Promise<void> {
+  const last = state.lastEditor;
+  if (last && !last.document.isClosed) {
+    await vscode.window.showTextDocument(last.document, { viewColumn: last.viewColumn, selection: last.selection });
+  } else {
+    await vscode.commands.executeCommand("workbench.action.focusFirstEditorGroup");
+  }
+}
+
+/**
+ * ⌥⌘G must reach VS Code from Glut's terminal too, which otherwise hands a key to the program in it: its command goes
+ * on the owner's list of commands the terminal skips — once, said, and only that one entry.
+ */
+async function letTheKeyThrough(): Promise<void> {
+  const config = vscode.workspace.getConfiguration("terminal.integrated");
+  const skipped = config.inspect<string[]>("commandsToSkipShell")?.globalValue ?? [];
+  if (skipped.includes("glut.backToFile") || skipped.includes("-glut.backToFile")) {
+    return;
+  }
+  await config.update("commandsToSkipShell", [...skipped, "glut.backToFile"], vscode.ConfigurationTarget.Global);
+  void vscode.window.showInformationMessage(
+    "Glut: ⌥⌘G now also works inside Glut's terminal (glut.backToFile added to terminal.integrated.commandsToSkipShell).",
   );
 }
 
@@ -143,6 +171,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   }
   await listen(context);
+  state.lastEditor = vscode.window.activeTextEditor;
+  void letTheKeyThrough();
   // One click from anywhere: the status bar starts Glut, or shows the one there is.
   const item = vscode.window.createStatusBarItem("glut.open", vscode.StatusBarAlignment.Right, 100);
   item.name = "Glut";
@@ -162,6 +192,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
     vscode.commands.registerCommand("glut.open", () => open()),
+    vscode.commands.registerCommand("glut.backToFile", () => backToFile()),
+    vscode.window.onDidChangeActiveTextEditor((editor) => {
+      if (editor && editor.document.uri.scheme === "file") {
+        state.lastEditor = editor;
+      }
+    }),
     vscode.commands.registerCommand("glut.send", () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {

@@ -36,10 +36,11 @@ VS Code too.
 
 ## Commands
 
-*Open Glut* has the key ⌘Esc (Ctrl+Esc on Linux and Windows), the flame in the activity bar on the left (its view has
-the buttons), a flame in the focused editor's title bar and *Glut* in the status bar. What you select goes to Glut with
-your next message by itself; *Send Selection* only names it in your text. ⌘K in Glut's terminal draws Glut anew
-instead of clearing it.
+**⌥⌘G** (Ctrl+Alt+G on Linux and Windows) goes from a file to Glut and back again — for the way back, the extension puts
+`glut.backToFile` on VS Code's `terminal.integrated.commandsToSkipShell` once and says so. *Open Glut* also has the
+flame in the activity bar on the left (its view has the buttons), a flame in the focused editor's title bar and *Glut*
+in the status bar. What you select goes to Glut with your next message by itself; *Send Selection* only names it in your
+text. ⌘K in Glut's terminal draws Glut anew instead of clearing it.
 
 | Command | What it does |
 |---|---|
