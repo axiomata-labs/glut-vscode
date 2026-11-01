@@ -138,7 +138,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
   }
   await listen(context);
+  // One click from anywhere: the status bar starts Glut, or shows the one there is.
+  const item = vscode.window.createStatusBarItem("glut.open", vscode.StatusBarAlignment.Right, 100);
+  item.name = "Glut";
+  item.text = "$(flame) Glut";
+  item.tooltip = "Open Glut";
+  item.command = "glut.open";
+  item.show();
   context.subscriptions.push(
+    item,
     vscode.commands.registerCommand("glut.open", () => open()),
     vscode.commands.registerCommand("glut.send", () => {
       const editor = vscode.window.activeTextEditor;

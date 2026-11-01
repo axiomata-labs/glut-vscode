@@ -36,7 +36,8 @@ VS Code too.
 
 ## Commands
 
-The extension binds no keys; bind the commands the way you like.
+*Open Glut* has the key ⌘Esc (Ctrl+Esc on Linux and Windows), a flame in every editor's title bar and *Glut* in
+the status bar; bind the other commands the way you like.
 
 | Command | What it does |
 |---|---|

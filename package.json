@@ -25,7 +25,8 @@
       {
         "command": "glut.open",
         "title": "Open Glut",
-        "category": "Glut"
+        "category": "Glut",
+        "icon": "$(flame)"
       },
       {
         "command": "glut.send",
@@ -61,6 +62,11 @@
           "command": "glut.denyDiff",
           "when": "glut.diffShown",
           "group": "navigation@2"
+        },
+        {
+          "command": "glut.open",
+          "when": "!glut.diffShown",
+          "group": "navigation@9"
         }
       ],
       "editor/context": [
@@ -111,7 +117,14 @@
           "description": "Where Glut's terminal opens: beside the editors, or in the panel."
         }
       }
-    }
+    },
+    "keybindings": [
+      {
+        "command": "glut.open",
+        "key": "ctrl+escape",
+        "mac": "cmd+escape"
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p .",
