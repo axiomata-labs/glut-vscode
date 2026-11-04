@@ -95,6 +95,13 @@ function raw(port: number, bytes: string): Promise<string> {
   });
 }
 
+test("the editor writes where Glut looks: a moved GLUT_HOME, never a relative one", () => {
+  assert.equal(lockfile.glutHome({ GLUT_HOME: "/moved/home" }), "/moved/home");
+  assert.equal(lockfile.glutHome({ GLUT_HOME: "relative" }), os.homedir());
+  assert.equal(lockfile.glutHome({ GLUT_HOME: "" }), os.homedir());
+  assert.equal(lockfile.glutHome({}), os.homedir());
+});
+
 test("the file Glut finds the editor by is the owner's alone, and a dead editor's goes", () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "glut-vscode-"));
   const file = lockfile.write(4711, SECRET, "Visual Studio Code", ["/w"], home);

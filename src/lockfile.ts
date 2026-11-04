@@ -7,8 +7,14 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { randomBytes } from "node:crypto";
 
+/** The home Glut keeps its files in, as Glut finds it: `$GLUT_HOME` where it names an absolute folder, else yours. */
+export function glutHome(env: NodeJS.ProcessEnv = process.env): string {
+  const moved = env.GLUT_HOME;
+  return moved && path.isAbsolute(moved) ? moved : os.homedir();
+}
+
 /** The folder the editors leave their files in, below `home`. */
-export function dir(home: string = os.homedir()): string {
+export function dir(home: string = glutHome()): string {
   return path.join(home, ".glut", "ide");
 }
 
