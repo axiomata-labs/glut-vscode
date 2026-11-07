@@ -7,7 +7,7 @@
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/NamorX68/glut-vscode"
+    "url": "https://github.com/axiomata-labs/glut-vscode"
   },
   "engines": {
     "vscode": "^1.85.0"
